@@ -3,7 +3,6 @@ import sys
 from scipy.spatial.distance import squareform
 
 sys.path.append('/Users/edoardo/Work/Code/distributedsampling')
-from LeapFrogOU import optimize_S_matrix
 #from scipy.spatial.distance import squareform
 import scipy.stats as sts
 import matplotlib.pyplot as plt
