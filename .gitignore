@@ -1,0 +1,8 @@
+*.mat
+*.npy
+*.pdf
+*.png
+*.jpg
+*.pyc
+*.DStore
+.idea/
