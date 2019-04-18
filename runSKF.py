@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # import data
 
 # datDict = np.load('oscill.npy').all()
-datDict = np.load('exampleDynamic_2D.npy').all()
+datDict = np.load('exampleDynamic_2D_1.npy').all()
 NState = 2;
 M_prev = np.array([0.5, 0.5])
 Q = np.array(datDict['Q']) # system noise
@@ -17,7 +17,8 @@ A1 = np.array(datDict['A1'])
 A2 = np.array(datDict['A2']) # latent linear dynamics
 
 # initial conditions
-Z = np.array([[0.999,0.001],[0.001,0.999]])
+# Z = np.array([[0.9999,0.0001],[0.0001,0.9999]])
+Z = np.array([[0.9999,0.0001],[0.0001,0.9999]])
 dictA = {0:A1,1:A2}
 x_prev = np.zeros((x.shape[0],NState))
 x_prev[:,0] = np.ones(x.shape[0])*0.01#[0,0]
@@ -29,7 +30,7 @@ v_prev[:,:,1] = cov0 #* 0.001
 
 
 # SKF run
-np.random.seed(3)
+np.random.seed(4)
 # container for approx and probabilities for each state
 x_hat = np.zeros((x.shape[0],NState,x.shape[1]))
 M_hat = np.zeros((NState,x.shape[1]))
@@ -38,9 +39,11 @@ xtmp = np.zeros((x.shape[0], NState))
 Vtmp = np.zeros(v_prev.shape)
 Lmat = np.zeros((NState,NState))
 
+middle = yt.shape[1]//2
+yt = yt[:,middle-5*10**3:middle+5*10**3]
 
 for tt in range(yt.shape[1]):
-    print( tt)
+    print( tt, yt.shape[1])
     xDict = {}
     vDict = {}
     for j in range(NState):
@@ -72,19 +75,23 @@ plt.plot(range(numDots),yt[0,halfLen-numDots:halfLen],'r',label='S=0')
 plt.plot(range(numDots,2*numDots),yt[0,halfLen:halfLen+numDots],'b',label='S=1')
 plt.legend(frameon=False)
 ax = plt.subplot2grid((3, 2), (1, 0), colspan=2)
-smoothProb = np.convolve(M_hat[0,:],np.ones(100)/100.,mode='valid')
-plt.plot(range(smoothProb.shape[0]//2),smoothProb[:smoothProb.shape[0]//2],'r')
-plt.plot(range(smoothProb.shape[0]//2,smoothProb.shape[0]),smoothProb[smoothProb.shape[0]//2:],'b')
+smoothProb = np.convolve(M_hat[0,:],np.ones(100)/100.,mode='same')
+plt.plot(range(numDots),smoothProb[halfLen-numDots:halfLen],'r')
+plt.plot(range(numDots,2*numDots),smoothProb[halfLen:halfLen+numDots],'b')
 # plt.ylim(0.48,0.52)
 plt.ylabel('Pr(S = 0)')
-plt.plot([0,2*halfLen],[0.5,0.5],'--k',lw=2)
+plt.plot([0,2*numDots],[0.5,0.5],'--k',lw=2)
 
 ax = plt.subplot2grid((3, 2), (2, 0), colspan=2)
-plt.plot(x[0,halfLen-1000:halfLen+1000],label='original latent')
-plt.plot(x_hat[0,0,halfLen-1000:halfLen+1000],label='$\\bar{x}$|S=0')
-plt.plot(x_hat[0,1,halfLen-1000:halfLen+1000],label='$\\bar{x}$|S=1')
+plt.plot(x[0,halfLen-numDots:halfLen+numDots],label='original latent')
+plt.plot(x_hat[0,0,halfLen-numDots:halfLen+numDots],label='$\\bar{x}$|S=0')
+# plt.plot(x_hat[0,1,halfLen-numDots:halfLen+numDots],label='$\\bar{x}$|S=1')
 
 plt.legend(frameon=False)
 from scipy.io import savemat
 savemat('err.mat',{'M_prevEdo':M_hat})
 plt.savefig('filteredTraectory_%d_covRotated.pdf'%yt.shape[0])
+
+plt.figure()
+plt.plot(range(0,halfLen),smoothProb[:halfLen],'b')
+plt.plot(range(halfLen,2*halfLen),smoothProb[halfLen+1:],'r')

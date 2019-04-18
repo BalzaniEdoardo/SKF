@@ -5,6 +5,88 @@ from scipy.spatial.distance import squareform
 from scipy.optimize import minimize
 # import scipy.linalg as sciLinalg
 
+def smoothSKF(x_tp1_T,V_tp1_T,x_t_t,V_t_t,V_tp1_tp1,V_tp1_t__tp1,F,Q):
+    """
+    Input
+    =====
+            :x_tp1_T:
+               .. math:: x_{t+1|T}^{k} = E[X_{t+1} | y_{1:T}\, ; S_{t+1} = k]
+            :V_tp1_T:
+                .. math:: V_{t+1|T}^{k} = Cov[X_{t+1} | y_{1:T}\, ; S_{t+1} = k]
+            :x_t_t:
+                .. math:: x_{t|t}^{j} = E[X_t | y_{1:t}\, ; S_t = j]
+            :V_t_t:  
+                .. math:: V_{t|t}^{j} = Cov[X_t | y_{1:t}\, ; S_t = j]
+            :V_tp1_tp1:
+                .. math::  V_{t+1|t+1}^{k} = Cov[X_{t+1} | y_{1:t+1}\, ; S_{t+1} = k]
+            :V_tp1_t__tp1:
+                .. math:: Cov[X_{t+1}, X_{t} | y_{1:t+1}\,; S_{t}=j\,; S_{t+1}=k]
+            :F: Linear dynamics for the latent variables
+            :Q: System noise covariance matrix
+        
+    """
+    
+    x_tp1_t = np.dot(F,x_t_t)
+    V_tp1_t = np.dot(np.dot(F,V_t_t),F.T) + Q
+
+    # gain
+    J = np.dot(V_t_t, np.dot(F.T, np.linalg.pinv(V_tp1_t)))
+
+    x_t_T = x_t_t + np.dot(J, x_tp1_T - x_tp1_t)
+    V_t_T = V_t_t + np.dot(np.dot(J,V_tp1_T - V_tp1_t),J.T)
+    V_tp1_t__T = V_tp1_t__tp1 + np.dot(np.dot(V_tp1_T-V_tp1_tp1, np.linalg.pinv(V_tp1_tp1)),V_tp1_t__tp1)
+    return x_t_T,V_t_T,V_tp1_t__T
+
+def smoothStateProb(M_t_t,Z,M_tp1_T):
+    U = (Z.T * M_t_t).T / np.dot(M_t_t,Z)
+    # Utmp = np.zeros(Z.shape)
+    # for j in range( M_t_t.shape[0]):
+    #     Utmp[j,:] = M_t_t[j] * Z[j,:]/np.dot(M_t_t,Z)
+    # print('delta U')
+    # print(U-Utmp)
+
+    M_t_tp1__T = U * M_tp1_T
+
+    # Mtmp = np.zeros(Z.shape)
+    # for k in range(Z.shape[0]):
+    #     Mtmp[:,k] = U[:,k]*M_tp1_T[k]
+    #
+    # print('delta M',M_t_tp1__T-Mtmp)
+
+    M_t_T = np.sum(M_t_tp1__T,1)
+
+    # Mtmp2 = np.dot(U,M_tp1_T)
+    # print('deltaM 2')
+    # print(Mtmp2-M_t_T)
+
+    W = M_t_tp1__T.T / M_t_T
+    # Wtmp = np.zeros(Z.shape)
+    # for j in range(Z.shape[0]):
+    #     Wtmp[:,j] = M_t_tp1__T[j,:]/M_t_T[j]
+    # print('delta W')
+    # print(W-Wtmp)
+    return M_t_T, W, U
+
+# def smoothSKFEasy(x_tp1_T,V_tp1_T,x_t_t,V_t_t,V_tp1_tp1,V_tp1_t__tp1,F,Q):
+#     x_tp1_T = np.matrix(x_tp1_T).T
+#     V_tp1_T = np.matrix(V_tp1_T)
+#     x_t_t = np.matrix(x_t_t).T
+#     V_t_t = np.matrix(V_t_t)
+#     V_tp1_tp1 = np.matrix(V_tp1_tp1)
+#     V_tp1_t__tp1 = np.matrix(V_tp1_t__tp1)
+#     F = np.matrix(F)
+#     Q = np.matrix(Q)
+#
+#     # Smooth step
+#     x_tp1_t = F*x_t_t
+#     V_tp1_t = F*V_t_t*F.T + Q
+#     J = V_t_t * F.T * np.linalg.pinv(V_tp1_t)
+#
+#     x_t_T = x_t_t + J * (x_tp1_T - x_tp1_t)
+#     V_t_T = V_t_t + J * (V_tp1_T - V_tp1_t) * J.T
+#     V_tp1_t__T = V_tp1_t__tp1 + (V_tp1_T - V_tp1_tp1) * np.linalg.pinv(V_tp1_tp1) * V_tp1_t__tp1
+#     return x_t_T, V_t_T, V_tp1_t__T
+
 def filterSKF(x_tm1_tm1, V_tm1_tm1, yt, F, H, Q, R,epsi=0):
     """
     Description:
@@ -49,11 +131,14 @@ def crossCollapseSKF(X,Y,cov,P):
     """
     Input:
     ======
-    :param X: 2D array, (num of latents x num of states)
-    :param Y: 2D array, (num of latents x num of states)
-    :param cov: 3D array (num of latents x num of latents x num of states)
-    :param P: 1D array, (num of states,)
-    :return:
+    :X: 
+        2D array, (num of latents x num of states)
+    :Y: 
+        2D array, (num of latents x num of states)
+    :cov: 
+        3D array (num of latents x num of latents x num of states)
+    :P: 
+        1D array, (num of states,)
     """
     x_coll = np.dot(X,P)
     y_coll = np.dot(Y,P)
@@ -71,6 +156,193 @@ def weightSumSKF(L,Z,M_tm1):
     W_t = np.dot(M_ij, np.diag(1/M_t))
     return W_t, M_t
 
+def forwardPass(NState,x0,V0,M0,yt,dictA,H,Q,R,Z):
+    """
+    Input:
+    =====
+        :NState: number of hidden states
+        :x0: m x 1 initial condition for the latent mean
+        :V0: m x m initial condition for the latent covariance
+        :yt: N x T observations
+        :dictA: dicitionary with the different linear dynamics for the hidden (keys are the state)
+        :H: N x m projection matrix from hidden to observable
+        :Q: m x m system error covariance matrix
+        :R: N x N observation error covariance matrix
+    Output:
+    =======
+        :x_t_t:
+            .. math::
+                x_{t|t}^{j} = E[X_t | y_{1:t}\, ; S_t = j]
+            Array containing the mean of the latent at time t, given the measure up to time t  and a state at t
+        :V_t_t:
+            .. math::
+                V_{t|t}^{j} = Cov[X_t | y_{1:t}\, ; S_t = j]
+            Array containing the covariance of the latent at time t, given the measure up to time t and a state at t
+        :V_t_tm1__t:
+            .. math::
+                Cov[X_{t}, X_{t-1} | y_{1:t}\,; S_{t-1}=j\,; S_{t}=k]
+        :M_t_t:
+            .. math::
+                M_{t|t}^{j} = P(S_t = j | y_{1:t})
+            Vector of the probabilities of being in each state given the measure up to t
+    """
+    X_t_t = np.zeros((x0.shape[0], NState, yt.shape[1]+1))
+    V_t_t = np.zeros((*V0.shape, NState, yt.shape[1]+1))
+    M_t_t = np.zeros((NState, yt.shape[1]+1))
+    V_t_tm1__t = np.zeros((*V0.shape,NState,NState,yt.shape[1]+1))
+
+    # set initial conditions
+    for j in  range(NState):
+        X_t_t[:,j,0] = x0
+        V_t_t[:,:,j,0] = V0
+        M_t_t[j,0] = M0[j]
+
+    # define containers that will be used in the loop
+
+    xtmp = np.zeros((x0.shape[0], NState))
+    Vtmp = np.zeros((*V0.shape,NState))
+    Lmat = np.zeros((NState,NState))
+
+    # loop over time
+    for tt in range(yt.shape[1]):
+        print(tt,yt.shape[1])
+        xDict = {}
+        vDict = {}
+
+        for j in range(NState):
+            for i in range(NState):
+                xPrev = X_t_t[:, i, tt]
+                vPrev = V_t_t[:, :, i, tt]
+
+                xtmp[:, i], Vtmp[:, :, i], V_t_tm1__t[:,:,i,j,tt+1], Lmat[i, j] = \
+                    filterSKF(xPrev, vPrev, yt[:, tt], dictA[j], H, Q, R)
+            xDict[j] = xtmp.copy()
+            vDict[j] = Vtmp.copy()
+
+        W, M_t_t[:, tt+1] = weightSumSKF(Lmat, Z, M_t_t[:, tt])
+        for i in range(NState):
+            X_t_t[:, i, tt + 1], _, V_t_t[:, :, i, tt + 1] =\
+                crossCollapseSKF(xDict[i], xDict[i], vDict[i], W[:, i])
+
+    return X_t_t, V_t_t,V_t_tm1__t, M_t_t
+
+
+def oneStepSmooth(NState, x_tp1_T, V_tp1_T, x_t_t, V_t_t, V_tp1_tp1, VV_tp1_tp1, dictA, Q, M_t_t, M_tp1_T, Z):
+    """
+    Descrition
+    ==========
+        Function implementing a single step backward of the Switching Kalman smooter.
+        The equation for input and output given here follow the notation of Murphy K. 1998.
+    Input
+    =====
+        :NState: number of hidden dynamics
+        :x_tp1_T:
+            .. math::
+                x_{t+1|T}^{k} = E[X_{t+1} | y_{1:T}\, ; S_{t+1} = k]
+
+            Array containing the mean of the latent at time t+1 given all the measures and a fixed state at t+1
+        :V_tp1_T:
+            .. math::
+                V_{t+1|T}^{k} = Cov[X_{t+1} | y_{1:T}\, ; S_{t+1} = k]
+            Array containing the covariance of the latent at time t+1 given all the measures and a fixed state at t+1
+        :x_t_t:
+            .. math::
+                x_{t|t}^{j} = E[X_t | y_{1:t}\, ; S_t = j]
+            Array containing the mean of the latent at time t, given the measure up to time t  and a state at t
+        :V_t_t:
+            .. math::
+                V_{t|t}^{j} = Cov[X_t | y_{1:t}\, ; S_t = j]
+            Array containing the covariance of the latent at time t, given the measure up to time t and a state at t
+        :V_tp1_tp1:
+            .. math::
+                V_{t+1|t+1}^{k} = Cov[X_{t+1} | y_{1:t+1}\, ; S_{t+1} = k]
+            Array containing the covariance of the latent at time t+1, given the measure up to time t+1 and a state at t+1
+        :VV_tp1_tp1:
+            .. math::
+                Cov[X_{t+1}, X_{t} | y_{1:t+1}\,; S_{t}=j\,; S_{t+1}=k]
+        :dictA:
+            dict, keys are the tate indexes, values are the linear dynamics for the latent variables
+        :Q:
+            system noise covariance
+        :M_t_t:
+            .. math::
+                M_{t|t}^{j} = P(S_t = j | y_{1:t})
+            Vector of the probabilities of being in each state given the measure up to t
+        :M_tp1_T:
+            .. math::
+                M_{t+1|T}^{j} = P(S_{t+1} = j | y_{1:T})
+            Array of the prob of being in a state at t+1 given all measures
+        :Z:
+            Markov transition matrix, prior probability of switching from a state to  another
+
+    Output
+    ======
+        :x_t_T:
+            .. math::
+                x_{t|T}^{j} = E[X_t | y_{1:T}, S_t=j]
+            Array containing the mean of the latent given a state and all measures, one backward step given the input
+        :V_t_T:
+            .. math::
+                V_{t|T}^{k} = Cov[X_t | y_{1:T}\, ; S_{t} = k]
+            Array containing the covariance of the latent given a state and all measures, one backward step given the input
+        :M_t_T:
+            .. math::
+                M_{t+1|T}^{j} = P(S_{t+1} = j | y_{1:T})
+            Array of the prob of being in a state at t given all measures
+    """
+    M_t_T, W, U = smoothStateProb(M_t_t, Z, M_tp1_T)
+
+    x_t_T = np.zeros((x_tp1_T.shape[0], NState))
+    V_t_T = np.zeros((V_t_t.shape))
+    for j in range(NState):
+
+        xtmp = np.zeros((x_tp1_T.shape[0], NState))
+        Vtmp = np.zeros(V_t_t.shape)
+        for k in range(NState):
+            xjk_t_T, Vjk_t_T, Vjk_tp1_t__T = smoothSKF(x_tp1_T[:, k], V_tp1_T[:, :, k],
+                                                       x_t_t[:, j], V_t_t[:, :, j],
+                                                       V_tp1_tp1[:, :, k],
+                                                       VV_tp1_tp1[:, :, j, k], dictA[k], Q)
+
+            xtmp[:, k] = xjk_t_T.copy()
+            Vtmp[:, :, k] = Vjk_t_T.copy()
+
+        x_t_T[:, j], _, V_t_T[:, :, j] = crossCollapseSKF(xtmp, xtmp, Vtmp, W[:, j])
+
+    return x_t_T, V_t_T, M_t_T
+
+def backwardPassSKF(NState,X_t_t,V_t_t,V_t_tm1__t,M_t_t,dictA,Q,Z):
+
+    # initialize loop
+    x_t_T = np.zeros((X_t_t.shape[0],X_t_t.shape[2]))
+    V_t_T = np.zeros((V_t_t.shape[0],V_t_t.shape[1],X_t_t.shape[2]))
+
+    xj_t_T = np.zeros(X_t_t.shape)
+    Vj_t_T = np.zeros(V_t_t.shape)
+    M_t_T = np.zeros(M_t_t.shape)
+
+    xj_t_T[:,:,-1] = X_t_t[:,:,-1]
+    Vj_t_T[:,:,:,-1] = V_t_t[:,:,:,-1]
+    M_t_T[:,-1] = M_t_t[:,-1]
+
+    x_t_T[:,-1],_,V_t_T[:,:,-1] = crossCollapseSKF(xj_t_T[:, :, -1],xj_t_T[:, :, -1],Vj_t_T[:, :, :, -1], M_t_T[:, -1] )
+
+    for tt in range(X_t_t.shape[-1]-2,-1,-1):
+        print(tt,X_t_t.shape[-1])
+        x_t_t_ = X_t_t[:,:,tt]
+        V_t_t_ = V_t_t[:,:,:,tt]
+        V_tp1_tp1 = V_t_t[:,:,:,tt+1]
+        VV_tp1_tp1 = V_t_tm1__t[:,:,:,:, tt+1]
+        M_t_t_ = M_t_t[:,tt]
+        A,B,C = oneStepSmooth(NState, xj_t_T[:,:,tt+1],Vj_t_T[:,:,:,tt+1],x_t_t_,V_t_t_,
+                              V_tp1_tp1,VV_tp1_tp1,dictA,Q,M_t_t_,M_t_T[:,tt+1],Z)
+
+        xj_t_T[:, :, tt] = A
+        Vj_t_T[:, :, :, tt] = B
+        M_t_T[:, tt] = C
+        x_t_T[:,tt],_, V_t_T[:,:,tt] = crossCollapseSKF(xj_t_T[:, :, tt],xj_t_T[:, :, tt],Vj_t_T[:, :, :, tt], M_t_T[:, tt] )
+    return x_t_T, V_t_T, M_t_T
+
 def func_phislow(S,Sigma,SigmaInv,s2,N):
     W = np.matrix(np.eye(S.shape[0])- s2*SigmaInv + S*SigmaInv)
     Lambda = np.matrix(np.diag(np.diag(Sigma)))
@@ -80,8 +352,8 @@ def func_phislow(S,Sigma,SigmaInv,s2,N):
     return np.trace(sqrtLambdaInv*P*sqrtLambdaInv)/(2*N**2),W
 
 def symmetrize(M):
-    if np.max(np.abs(M-M.T)) > 10**-15:
-        raise ValueError("Matrix M must be symmetric up to numerical error")
+#    if np.max(np.abs(M-M.T)) > 10**-13:
+#        raise ValueError("Matrix M must be symmetric up to numerical error")
     if type(M) == np.matrix:
         M = np.triu(M)
         M = M + np.triu(M,1).T
@@ -172,7 +444,7 @@ def optimize_S_matrix(Sigma,SigmaInv,s2,N,lam,checkGrad=False):
     # define gradient
     grad_func = lambda S : grad_loss(S,Sigma,SigmaInv,s2,N,lam,isVector=True)
     
-    res = minimize(func, S, method='L-BFGS-B', jac=grad_func, tol=10**-15)
+    res = minimize(func, S, method='L-BFGS-B', jac=grad_func, tol=10**-10)
     
     return res
 

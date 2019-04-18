@@ -7,7 +7,7 @@ sys.path.append('/Users/edoardo/Work/Code/distributedsampling')
 import scipy.stats as sts
 import matplotlib.pyplot as plt
 from skf_library import optimize_S_matrix
-np.random.seed(3)
+np.random.seed(4)
 #### SAMPLER COV GENERATION
 DIM = 2
 
@@ -15,7 +15,7 @@ DIM = 2
 # for k in range(1,DIM):
 #     COV = COV + (DIM-k)/50.*np.diag(np.ones(DIM-k),k)
 # COV = COV + np.triu(COV,1).T
-dt = 0.03
+dt = 0.01
 
 if DIM != 2:
 #### N-DIM covariance creation
@@ -56,8 +56,8 @@ else:
     res = optimize_S_matrix(COV2, COVINV2, s2, N, lam, checkGrad=True)
     SM = squareform(res.x)
     SM = np.matrix(np.triu(SM) - np.tril(SM))
-    OUMatrixNoRot = np.eye(DIM) + dt * np.dot(-s2 * np.eye(COV2.shape[0]) + SM, COVINV2)
-    OUMatrix = np.eye(DIM)+dt*np.dot(-s2*np.eye(COV.shape[0]) + SM, COVINV)#-np.dot(-s2*np.eye(COV.shape[0]) + SM, COVINV)
+    OUMatrixNoRot = np.eye(DIM) + dt * np.dot(-s2 * np.eye(COV2.shape[0]) + 10*SM, COVINV2)
+    OUMatrix = np.eye(DIM)+dt*np.dot(-s2*np.eye(COV.shape[0]) + 20*SM, COVINV)#-np.dot(-s2*np.eye(COV.shape[0]) + SM, COVINV)
     print('S',res.x)
 
 
@@ -70,7 +70,7 @@ x0 = norm.rvs()
 ## SAMPLER TRAJECTORY
 
 sdt = np.sqrt(2)*np.sqrt(dt)
-nIter = 50000
+nIter = 100000
 X = np.zeros((DIM,nIter+1))
 RND = np.random.normal(loc = 0.0, scale = 1,size=(DIM,nIter))
 for k in range(nIter):
@@ -86,7 +86,7 @@ plt.plot(range(dTimes,2*dTimes),X[0,nIter//2:nIter//2+dTimes],'b')
 
 DIM_y = 50
 C = np.random.normal(size=(DIM_y,DIM))
-R = 0.05*np.eye(DIM_y)
+R = 0.5*np.eye(DIM_y)
 y = np.dot(C,X[:,1:]) + np.random.multivariate_normal(np.zeros(DIM_y),R,size=nIter).T
 
 plt.figure()
@@ -109,6 +109,6 @@ datDict = {
     'A2':OUMatrixNoRot,
     'Q':np.eye(DIM)*sdt**2
 }
-np.save('exampleDynamic_%dD.npy'%(DIM),datDict)
+np.save('exampleDynamic_%dD_changeFreq.npy'%(DIM),datDict)
 from scipy.io import savemat
-savemat('exampleDynamic_%dD.mat'%(DIM),datDict)
+savemat('exampleDynamic_%dD_changeFreq.mat'%(DIM),datDict)
