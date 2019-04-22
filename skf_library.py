@@ -294,21 +294,26 @@ def oneStepSmooth(NState, x_tp1_T, V_tp1_T, x_t_t, V_t_t, V_tp1_tp1, VV_tp1_tp1,
 
     x_t_T = np.zeros((x_tp1_T.shape[0], NState))
     V_t_T = np.zeros((V_t_t.shape))
+    XJK_t_T = np.zeros((x_tp1_T.shape[0], NState,NState)) # contain all
+
     for j in range(NState):
 
         xtmp = np.zeros((x_tp1_T.shape[0], NState))
         Vtmp = np.zeros(V_t_t.shape)
+
         for k in range(NState):
             xjk_t_T, Vjk_t_T, Vjk_tp1_t__T = smoothSKF(x_tp1_T[:, k], V_tp1_T[:, :, k],
                                                        x_t_t[:, j], V_t_t[:, :, j],
                                                        V_tp1_tp1[:, :, k],
                                                        VV_tp1_tp1[:, :, j, k], dictA[k], Q)
-
+            XJK_t_T[:,j,k] = xjk_t_T.copy()
             xtmp[:, k] = xjk_t_T.copy()
             Vtmp[:, :, k] = Vjk_t_T.copy()
 
         x_t_T[:, j], _, V_t_T[:, :, j] = crossCollapseSKF(xtmp, xtmp, Vtmp, W[:, j])
 
+    xx = np.zeros(x)
+    crossCollapseSKF()
     return x_t_T, V_t_T, M_t_T
 
 def backwardPassSKF(NState,X_t_t,V_t_t,V_t_tm1__t,M_t_t,dictA,Q,Z):
